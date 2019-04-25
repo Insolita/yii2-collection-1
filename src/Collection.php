@@ -10,7 +10,10 @@ namespace yii\collection;
 use ArrayAccess;
 use Closure;
 use Countable;
+use function is_array;
 use Iterator;
+use function iterator_to_array;
+use Traversable;
 use yii\base\Component;
 use yii\base\InvalidCallException;
 use yii\base\InvalidArgumentException;
@@ -57,13 +60,13 @@ class Collection extends Component implements ArrayAccess, Iterator, Countable
 
     /**
      * Collection constructor.
-     * @param array $data
+     * @param array|iterable|\yii\collection\Collection $data
      * @param array $config
      */
-    public function __construct(array $data = [], $config = [])
+    public function __construct($data = [], $config = [])
     {
-        $this->_data = $data;
         parent::__construct($config);
+        $this->_data = $this->ensureData($data);
     }
 
     /**
@@ -667,5 +670,23 @@ class Collection extends Component implements ArrayAccess, Iterator, Countable
     {
         $this->_iteratorData = $this->getData();
         \reset($this->_iteratorData);
+    }
+
+    /**
+     * @param \yii\collection\Collection|iterable|array $data
+     * @return array
+     */
+    protected function ensureData($data)
+    {
+        if(is_array($data)){
+            return $data;
+        }
+        if ($data instanceof self){
+            return $data->getData();
+        }
+        if ($data instanceof Traversable){
+            return iterator_to_array($data);
+        }
+        return (array) $data;
     }
 }

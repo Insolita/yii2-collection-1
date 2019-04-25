@@ -7,6 +7,8 @@
 
 namespace yiiunit\collection;
 
+use ArrayObject;
+use yii\base\DynamicModel;
 use yii\data\Pagination;
 use yii\collection\Collection;
 use yiiunit\collection\models\Customer;
@@ -21,6 +23,7 @@ class CollectionTest extends TestCase
             new Customer(['id' => 3]),
         ];
     }
+
 
     public function testIterator()
     {
@@ -611,4 +614,42 @@ class CollectionTest extends TestCase
         $pagination->page = 0;
         $this->assertEquals([1,2,3,4,5], $collection->paginate($pagination)->getData());
     }
+
+    public function testConstructWithIterable()
+    {
+        $items = new ArrayObject($this->getIteratorModels());
+        $collection = new Collection($items);
+        $this->assertEquals((new Collection($this->getIteratorModels()))->getData(), $collection->getData());
+    }
+
+    public function testConstructWithCollection()
+    {
+        $collection = new Collection($this->getIteratorModels());
+        $collection2 = new Collection($collection);
+        $this->assertEquals($collection2->getData(), $collection->getData());
+    }
+
+    public function testConstructWithNotArray()
+    {
+        $collection = new Collection('foo');
+        $this->assertEquals(['foo'], $collection->getData());
+
+        $collection = new Collection(123);
+        $this->assertEquals([123], $collection->getData());
+
+        $collection = new Collection(null);
+        $this->assertEquals([], $collection->getData());
+    }
+
+    public function testConstructWithModels()
+    {
+        $activeRecord = new Customer(['id' => 1, 'name'=>'foo', 'age'=>15]);
+        $collection = new Collection($activeRecord);
+        $this->assertEquals($activeRecord->getAttributes(), $collection->getData());
+
+        $model = new DynamicModel(['foo'=>'bar', 'baz'=>[]]);
+        $collection = new Collection($model);
+        $this->assertEquals($model->getAttributes(), $collection->getData());
+    }
+
 }
