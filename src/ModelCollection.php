@@ -28,12 +28,14 @@ class ModelCollection extends Collection
      */
     public $query;
 
+    /**
+     * @var array|BaseActiveRecord[]
+    */
     private $_models;
-
 
     /**
      * Collection constructor.
-     * @param array $data
+     * @param array $models
      * @param array $config
      */
     public function __construct($models = [], $config = [])
@@ -166,7 +168,7 @@ class ModelCollection extends Collection
     {
         return $this->map(function($model) use ($fields, $expand, $recursive) {
             /** @var $model Arrayable */
-            return $model->toArray();
+            return $model->toArray($fields, $expand, $recursive);
         });
     }
 
