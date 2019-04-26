@@ -393,7 +393,7 @@ class Collection extends Component implements ArrayAccess, Iterator, Countable
             return new static(\array_merge($this->getData(), $collection->getData()));
         } elseif (\is_array($collection)) {
             return new static(\array_merge($this->getData(), $collection));
-        } elseif ($collection instanceof Traversable) {
+        } elseif (\is_iterable($collection)) {
             return new static(\array_merge($this->getData(), \iterator_to_array($collection)));
         }
         throw new InvalidArgumentException('Collection can only be merged with an array or other collections.');
@@ -711,7 +711,7 @@ class Collection extends Component implements ArrayAccess, Iterator, Countable
         if ($data instanceof self){
             return $data->getData();
         }
-        if ($data instanceof Traversable){
+        if (\is_iterable($data)){
             return \iterator_to_array($data);
         }
         return (array) $data;

@@ -219,6 +219,18 @@ class ModelCollection extends Collection
                        )->execute();
     }
 
+    public function addToRelation(ActiveRecord $model, $relationName)
+    {
+         foreach ($this->getModels() as $related){
+             $model->link($relationName, $related);
+         }
+    }
+
+
+
+    /**
+     * @param string $className
+     */
     public function ensureAllInstanceOf($className = ActiveRecord::class)
     {
         $this->each(function($item) use ($className){

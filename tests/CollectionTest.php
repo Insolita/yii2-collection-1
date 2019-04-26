@@ -75,7 +75,7 @@ class CollectionTest extends TestCase
         $collection->next();
         $this->assertSame($models[2], $collection->current());
         $collection->next();
-        $this->assertFalse($collection->current());
+        $this->assertFalse($collection->valid());
     }
 
     public function testIteratorValid()
@@ -366,7 +366,6 @@ class CollectionTest extends TestCase
     {
         $data = [['a'=>1, 'b'=>2], ['a'=>5, 'b'=>10], ['a'=>3, 'b'=>2]];
         $column = $this->collect($data)->column('a', false);
-        $this->assertInstanceOf(Collection::class, $column);
         $this->assertSame([1, 5, 3], $column->getData());
 
         $data = ['a'=>1, 'b'=>2];

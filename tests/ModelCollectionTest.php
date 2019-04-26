@@ -254,7 +254,6 @@ class ModelCollectionTest extends CollectionTest
         }
 
         $expandedArray = $collection->toArray([], ['orders'])->getData();
-        \yii\helpers\VarDumper::dump($expandedArray);
         $this->assertTrue(is_array($expandedArray));
 
         foreach ($expandedArray as $item) {

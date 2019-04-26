@@ -56,6 +56,25 @@ class Customer extends ActiveRecord
         return $this->hasMany(Order::class, ['customerId' => 'id'])->inverseOf('customer');
     }
 
+    /**
+     * @return \yii\collection\ModelCollection
+     */
+    public function relatedOrders()
+    {
+        $items = $this->isRelationPopulated('orders') ? $this->orders : null;
+        return new \yii\collection\ModelCollection($items, $this->getOrders());
+    }
+
+    /**
+     * @return \yii\collection\ModelCollection
+     */
+    public function relation($name)
+    {
+        $relation = $this->getRelation($name);
+        $items = $this->isRelationPopulated($name) ? $this->$name : null;
+        return new \yii\collection\ModelCollection($items, $relation);
+    }
+
     public function fields()
     {
         $fields = parent::fields();
