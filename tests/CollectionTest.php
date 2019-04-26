@@ -9,8 +9,8 @@ namespace yiiunit\collection;
 
 use ArrayObject;
 use yii\base\DynamicModel;
-use yii\data\Pagination;
 use yii\collection\Collection;
+use yii\data\Pagination;
 use yiiunit\collection\models\Customer;
 
 class CollectionTest extends TestCase
@@ -258,6 +258,32 @@ class CollectionTest extends TestCase
         }, 6));
     }
 
+    public function testEach()
+    {
+        $collection = $this->collect([1, 2, 3, 4, 5]);
+        $a = $b = 0;
+
+        $collection->each(function() use(&$a){
+              ++$a;
+        })->each(function($value, $key) use (&$b) {
+            if($value > 3){
+                return false;
+            }
+            $b+=$value;
+        }, true);
+        $this->assertEquals(5, $a);
+        $this->assertEquals(6, $b);
+        $this->assertEquals([1, 2, 3, 4, 5], $collection->getData());
+
+        $collection = $this->collect($this->getIteratorModels());
+        $collection->each(function(Customer $model) {
+            $model->loadDefaultValues();
+        })->each(function(Customer $model) {
+            $this->assertEquals('John', $model->name);
+        });
+
+    }
+
     public function testSum()
     {
         $collection = $this->collect([]);
@@ -335,6 +361,20 @@ class CollectionTest extends TestCase
         ];
         $collection = $this->collect($data);
         $this->assertSame(['a', 'c', 'test'], $collection->values()->getData());
+    }
+
+    public function testColumn()
+    {
+        $data = [['a'=>1, 'b'=>2], ['a'=>5, 'b'=>10], ['a'=>3, 'b'=>2]];
+        $column = $this->collect($data)->column('a', false);
+        $this->assertInstanceOf(Collection::class, $column);
+        $this->assertSame([1, 5, 3], $column->getData());
+
+        $data = ['a'=>1, 'b'=>2];
+        $column = $this->collect($data)->column('a');
+        $this->assertSame([null, null], $column->getData());
+        $column = $this->collect($data)->column('a', true);
+        $this->assertSame(['a'=>null, 'b'=>null], $column->getData());
     }
 
     public function testFlip()

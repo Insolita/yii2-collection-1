@@ -25,7 +25,7 @@ class Order extends ActiveRecord
     
     public function getItems()
     {
-        return $this->hasMany(OrderItem::class, ['id' => 'orderId']);
+        return $this->hasMany(OrderItem::class, ['orderId' => 'id']);
     }
     
     public function getProducts()

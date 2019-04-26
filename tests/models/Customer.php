@@ -16,9 +16,11 @@ use yii\collection\CollectionBehavior;
  * @property int $id
  * @property string $name
  * @property int $age
+ * @property-read \yiiunit\collection\models\Order[]|array $orders
  */
 class Customer extends ActiveRecord
 {
+
     /**
      * {@inheritdoc}
      */
@@ -36,5 +38,13 @@ class Customer extends ActiveRecord
         $query = parent::find();
         $query->attachBehavior('collection', CollectionBehavior::class);
         return $query;
+    }
+
+    /**
+     * @return \yii\db\ActiveQuery
+     */
+    public function getOrders()
+    {
+        return $this->hasMany(Order::class, ['customerId' => 'id'])->inverseOf('customer');
     }
 }

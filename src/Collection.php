@@ -158,6 +158,23 @@ class Collection extends Component implements ArrayAccess, Iterator, Countable
     }
 
     /**
+     * Apply callback for each item
+     * @param      $callable
+     * @param bool $breakOnFalse
+     * @return static
+     */
+    public function each($callable, $breakOnFalse = false)
+    {
+        foreach ($this->getData() as $key =>$value)
+        {
+            $result = $callable($value, $key);
+            if($breakOnFalse === true && $result === false){
+                break;
+            }
+        }
+        return new static($this);
+    }
+    /**
      * Calculate the sum of a field of the models in the collection.
      * @param string|Closure|array $field the name of the field to calculate.
      * This will be passed to [[ArrayHelper::getValue()]].
@@ -213,6 +230,16 @@ class Collection extends Component implements ArrayAccess, Iterator, Countable
         return count($this->getData());
     }
 
+    /**
+     * @see ArrayHelper::getColumn()
+     * @param      $name
+     * @param bool $keepKeys
+     * @return static
+     */
+    public function column($name, $keepKeys = false)
+    {
+        return new static(ArrayHelper::getColumn($this->getData(), $name, $keepKeys));
+    }
     /**
      * Sort collection data by value.
      *
