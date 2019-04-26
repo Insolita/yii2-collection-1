@@ -7,7 +7,6 @@
 
 namespace yii\collection;
 
-use function call_user_func;
 use Yii;
 use yii\base\Arrayable;
 use yii\base\InvalidCallException;
@@ -48,7 +47,17 @@ class ModelCollection extends Collection
      */
     public function getModels()
     {
+        //probably we should ensure here that each item is BaseActiveRecordInstance
         return $this->getData();
+    }
+
+    /**
+     * return collection filled by query
+     * @return $this
+     */
+    public function reload()
+    {
+        return new static($this->ensureData(null), ['query'=>$this->query]);
     }
 
     // TODO relational operations like link() and unlink() sync()
@@ -69,63 +78,56 @@ class ModelCollection extends Collection
         $this->query->findWith($with, $models);
         return $this;
     }
-    
+
     // AR specific stuff
 
     /**
      * https://github.com/yiisoft/yii2/issues/13921
-     *
      * TODO add transaction support
+     * @param bool   $useTransaction
+     * @param string $db
+     * @return
+     * @throws \Throwable
      */
     public function deleteAll($useTransaction = false, $db = 'db')
     {
         if($useTransaction === true){
-           return $this->inTransaction($db, 'deleteAll');
+           return $this->runTransaction($db, 'deleteAll');
         }
-        foreach($this->getData() as $model) {
+        foreach($this->getModels() as $model) {
             $model->delete();
         }
         // return $this ?
     }
 
+    /**
+     * @param $scenario
+     * @return $this
+     */
     public function scenario($scenario)
     {
-        foreach($this->getData() as $model) {
+        foreach($this->getModels() as $model) {
             $model->scenario = $scenario;
         }
         return $this;
     }
 
     /**
-     * https://github.com/yiisoft/yii2/issues/13921
-     *
-     * TODO add transaction support
+     * Fill all models with common attributes
+     * @param      $attributes
+     * @param bool $safeOnly
+     * @param string|null $scenario
+     * @return $this
      */
-    public function updateAll($attributes, $safeOnly = true, $runValidation = true, $useTransaction = false, $db = 'db')
+    public function fillAll($attributes, $safeOnly = true, $scenario = null)
     {
-        if($useTransaction === true){
-            return $this->inTransaction($db, 'updateAll', [$attributes, $safeOnly, $runValidation]);
-        }
-        foreach($this->getData() as $model) {
-            $model->setAttributes($attributes, $safeOnly);
-            $model->update($runValidation, array_keys($attributes));
-        }
-        return $this;
-    }
-
-    public function insertAll()
-    {
-        // TODO could be a batch insert
-        return $this;
-    }
-
-    public function saveAll($runValidation = true, $attributeNames = null, $useTransaction = false, $db = 'db')
-    {
-        if($useTransaction === true){
-            return $this->inTransaction($db, 'saveAll', [$runValidation, $attributeNames]);
-        }
-        foreach($this->getData() as $model) {
-            $model->save($runValidation, $attributeNames);
+        if(!empty($attributes)){
+            foreach($this->getModels() as $model) {
+                if($scenario){
+                    $model->scenario = $scenario;
+                }
+                $model->setAttributes($attributes, $safeOnly);
+            }
         }
         return $this;
     }
@@ -138,7 +140,7 @@ class ModelCollection extends Collection
     public function validateAll()
     {
         $success = true;
-        foreach($this->getData() as $model) {
+        foreach($this->getModels() as $model) {
             if (!$model->validate()) {
                 $success = false;
             }
@@ -146,6 +148,54 @@ class ModelCollection extends Collection
         return $success;
     }
 
+    /**
+     * https://github.com/yiisoft/yii2/issues/13921
+     * @param bool              $runValidation
+     * @param array|null        $attributeNames
+     * @param bool              $useTransaction
+     * @param string|Connection $db used for transaction
+     * @return $this
+     */
+    public function updateAll($runValidation = true, $attributeNames = null, $useTransaction = false, $db = 'db')
+    {
+        if($useTransaction === true){
+            return $this->runTransaction($db, 'updateAll', [$runValidation, $attributeNames]);
+        }
+        foreach ($this->getModels() as $model){
+            if($model->isNewRecord){
+                $model->save($runValidation, $attributeNames);
+            }else{
+                $model->update($runValidation, $attributeNames);
+            }
+        }
+        return $this;
+    }
+
+    /**
+     * @param bool       $runValidation
+     * @param null|array $attributeNames
+     * @param bool       $useTransaction
+     * @param string     $db
+     * @return $this
+     * @throws \Throwable
+     */
+    public function saveAll($runValidation = true, $attributeNames = null, $useTransaction = false, $db = 'db')
+    {
+        if($useTransaction === true){
+            return $this->runTransaction($db, 'saveAll', [$runValidation, $attributeNames]);
+        }
+        foreach($this->getModels() as $model) {
+            $model->save($runValidation, $attributeNames);
+        }
+        return $this;
+    }
+
+
+    public function insertAll()
+    {
+        // TODO could be a batch insert
+        return $this;
+    }
     /**
      * @param array $fields
      * @param array $expand
@@ -168,7 +218,7 @@ class ModelCollection extends Collection
      */
     public function toJson($options = 320)
     {
-        return Json::encode($this->toArray()->getData(), $options);
+        return Json::encode($this->toArray()->getModels(), $options);
     }
 
     protected function ensureData($data)
@@ -182,12 +232,15 @@ class ModelCollection extends Collection
         return parent::ensureData($data); // TODO: Change the autogenerated stub
     }
 
-    private function inTransaction($db, $method, $args = [])
+    private function runTransaction($db, $method, $args = [])
     {
+        /**@var Connection $db*/
         $db = Instance::ensure($db, Connection::class);
         $transaction = $db->beginTransaction();
         try{
-            return $this->$method(...$args);
+            $result = $this->$method(...$args);
+            $transaction->commit();
+            return $result;
         }catch (\Throwable $e){
             $transaction->rollBack();
             throw $e;

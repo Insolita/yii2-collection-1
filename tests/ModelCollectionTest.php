@@ -11,12 +11,14 @@ use yii\base\InvalidCallException;
 use yii\collection\Collection;
 use yii\collection\ModelCollection;
 use yii\db\ActiveQuery;
+use yii\db\IntegrityException;
 use yii\helpers\ArrayHelper;
 use yiiunit\collection\models\Customer;
 use yiiunit\collection\models\CustomerCollection;
 use yiiunit\collection\models\Order;
+use yiiunit\collection\models\Product;
+use function count;
 use function is_array;
-use function strrev;
 
 class ModelCollectionTest extends CollectionTest
 {
@@ -38,6 +40,7 @@ class ModelCollectionTest extends CollectionTest
         $this->assertInstanceOf(CustomerCollection::class, Customer::find()->collect(CustomerCollection::class));
         $this->assertInstanceOf(ActiveQuery::class, Customer::find()->collect()->query);
         $this->assertEquals(3, Customer::find()->collect()->count());
+        $this->assertEquals(2, Customer::find()->where(['!=', 'name', 'Bob'])->collect()->count());
     }
 
     public function testScenarios()
@@ -70,15 +73,54 @@ class ModelCollectionTest extends CollectionTest
         });
     }
 
+    public function testValidateAll()
+    {
+        $models = [
+            new Customer(['name' => 'Bob', 'age' => 22]),
+            new Customer(['name' => 'Alice', 'age'=>21])
+        ];
+        $collection = new ModelCollection($models);
+        $isValid = $collection->validateAll();
+        $this->assertTrue($isValid);
+        $modified = $collection->each(function(Customer $model) {
+            $model->setAttribute('name', 'Li');
+        });
+        $this->assertFalse($modified->validateAll());
+        $modified->each(function(Customer $customer){
+            $this->assertTrue($customer->hasErrors('name'));
+        });
+    }
     public function testSaveAll()
     {
-        $collection = Customer::find()->collect()->indexBy('id');
-        Customer::find()->collect()->each(function(Customer $model){
-             $model->setAttribute('name', strrev($model->name));
-        })->saveAll(false)->each(function(Customer $model) use($collection){
-            $model->refresh();
-            $this->assertEquals($model->name, strrev($collection[$model->id]->name));
-        });
+        $collection = new ModelCollection([
+            new Customer(['name' => 'Bob', 'age' => 22]),
+            new Customer(['name' => 'Alice', 'age'=>21])
+        ]);
+        $notNull = function($v){return $v !== null;};
+        $savedIds = $collection->saveAll()->column('id')->filter($notNull);
+        $this->assertEquals(2, $savedIds->count());
+        $collection = new ModelCollection([
+            new Customer(['name' => 'Li', 'age' => 22]),
+        ]);
+        $savedIds = $collection->saveAll()->column('id')->filter($notNull);
+        $this->assertEquals(0, $savedIds->count());
+        $this->assertTrue($collection[0]->hasErrors('name'));
+    }
+
+    public function testSaveAllTransaction()
+    {
+        $collection = new ModelCollection([
+            new Product(['name' => 'Foo', 'cost' => 22]),
+            new Product(['name' => 'Bar'])
+        ]);
+        $throw = false;
+        try{
+            $collection->saveAll(false, null, true);
+        }catch (IntegrityException $e){
+           $this->assertFalse(Product::find()->where(['name'=>'Foo'])->exists());
+           $throw = true;
+        }
+        $this->assertTrue($throw);
     }
 
     public function testDeleteAll()
@@ -91,13 +133,46 @@ class ModelCollectionTest extends CollectionTest
 
     public function testUpdateAll()
     {
-        Customer::find()
+        Customer::find()->where(['name' => 'Bob'])
                 ->collect()
-                ->updateAll(['name' => 'Bob'])
+                ->fillAll(['name' => 'Alice'])
+                ->updateAll()
                 ->each(function(Customer $model) {
+                    $this->assertFalse($model->hasErrors());
+                    $this->assertEquals('Alice', $model->name);
+                })
+                ->fillAll(['name' => 'Li'])
+                ->updateAll()
+                ->each(function(Customer $model) {
+                    $this->assertTrue($model->hasErrors('name'));
                     $model->refresh();
-                    $this->assertEquals($model->name, 'Bob');
+                    $model->clearErrors();
+                    $this->assertEquals('Alice', $model->name);
+                })
+                ->fillAll(['name' => 'Li'])
+                ->updateAll(false)
+                ->each(function(Customer $model) {
+                    $this->assertFalse($model->hasErrors('name'));
+                    $model->refresh();
+                    $this->assertEquals('Li', $model->name);
                 });
+    }
+
+    public function testUpdateAllTransaction()
+    {
+        $collection = Product::find()->where(['>', 'id', 3])->collect();
+        $collection = $collection->fillAll(['cost'=>20], false)
+                                 ->merge([new Product(['name' => 'Foo', 'cost' => null])]);
+        $throwed = false;
+        try{
+            $collection->updateAll(false, null, true);
+        }catch (IntegrityException $e){
+            $throwed = true;
+        }
+        Product::find()->where(['>', 'id', 3])->collect()->each(function(Product $model){
+            $this->assertNotEquals(20, $model->cost);
+        });
+        $this->assertTrue($throwed);
     }
 
     /**
@@ -114,5 +189,39 @@ class ModelCollectionTest extends CollectionTest
         $this->expectException(InvalidCallException::class);
         $collection = $this->collect(null);
         $this->assertEquals([], $collection->getData());
+    }
+
+    public function testToArray()
+    {
+        $collection = Customer::find()->with(['orders'])->collect();
+        $defaultArray = $collection->toArray()->getData();
+        $this->assertTrue(is_array($defaultArray));
+
+        foreach ($defaultArray as $item) {
+            $this->assertArrayHasKey('id', $item);
+            $this->assertArrayHasKey('name', $item);
+            $this->assertArrayHasKey('foo', $item);
+            $this->assertArrayNotHasKey('age', $item);
+            $this->assertArrayNotHasKey('orders', $item);
+        }
+
+        $expandedArray = $collection->toArray([], ['orders'])->getData();
+        \yii\helpers\VarDumper::dump($expandedArray);
+        $this->assertTrue(is_array($expandedArray));
+
+        foreach ($expandedArray as $item) {
+            $this->assertArrayHasKey('orders', $item);
+            $this->assertGreaterThan(0, count($item['orders']));
+        }
+
+        $customFieldsArray = $collection->toArray(['name'])->getData();;
+        $this->assertTrue(is_array($customFieldsArray));
+
+        foreach ($customFieldsArray as $item) {
+            $this->assertArrayHasKey('name', $item);
+            $this->assertArrayNotHasKey('foo', $item);
+            $this->assertArrayNotHasKey('id', $item);
+            $this->assertArrayNotHasKey('orders', $item);
+        }
     }
 }

@@ -29,6 +29,14 @@ class Customer extends ActiveRecord
         return 'customers';
     }
 
+    public function rules()
+    {
+        return [
+            [['age'], 'integer', 'min'=>0],
+            [['name'], 'string', 'min'=>3,'max' => 15]
+        ];
+    }
+
     /**
      * {@inheritdoc}
      * @return \yii\db\ActiveQuery|CollectionBehavior
@@ -46,5 +54,15 @@ class Customer extends ActiveRecord
     public function getOrders()
     {
         return $this->hasMany(Order::class, ['customerId' => 'id'])->inverseOf('customer');
+    }
+
+    public function fields()
+    {
+        $fields = parent::fields();
+        unset($fields['age']);
+        $fields['foo'] = function(){
+            return 'foo';
+        };
+        return $fields;
     }
 }
