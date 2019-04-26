@@ -71,8 +71,8 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     {
         Yii::$app->db->createCommand()->createTable('customers', [
             'id' => 'pk',
-            'name' => 'string NOT NULL',
-            'age' => 'integer NOT NULL',
+            'name' => 'string NOT NULL DEFAULT "John"',
+            'age' => 'integer NOT NULL DEFAULT 18',
         ])->execute();
 
         Yii::$app->db->createCommand()->createTable('products', [

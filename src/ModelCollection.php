@@ -7,11 +7,15 @@
 
 namespace yii\collection;
 
+use function call_user_func;
+use Yii;
 use yii\base\Arrayable;
 use yii\base\InvalidCallException;
 use yii\db\ActiveQuery;
 use yii\db\ActiveRecordInterface;
 use yii\db\BaseActiveRecord;
+use yii\db\Connection;
+use yii\di\Instance;
 use yii\helpers\Json;
 
 /**
@@ -29,34 +33,14 @@ class ModelCollection extends Collection
     public $query;
 
     /**
-     * @var array|BaseActiveRecord[]
-    */
-    private $_models;
-
-    /**
      * Collection constructor.
-     * @param array $models
+     * @param array|null $models
      * @param array $config
      */
     public function __construct($models = [], $config = [])
     {
-        $this->_models = $models;
-        parent::__construct([], $config);
-    }
-
-    /**
-     * Lazy evaluation of models, if this collection has been created from a query.
-     */
-    public function getData()
-    {
-        if ($this->_models === null) {
-            if ($this->query === null) {
-                throw new InvalidCallException('This collection was not created from a query.');
-            }
-            $this->_models = $this->query->all();
-            $this->setData($this->_models);
-        }
-        return parent::getData();
+        //ensure that each instance of BaseActiveRecord or ActiveRecordInterface ?
+        parent::__construct($models, $config);
     }
 
     /**
@@ -81,12 +65,11 @@ class ModelCollection extends Collection
         if (!$this->query) {
             throw new InvalidCallException('This collection was not created from a query, so findWith() is not possible.');
         }
-        $this->ensureModels();
-        $this->query->findWith(['colors'], $this->_models);
+        $models = $this->getData();
+        $this->query->findWith($with, $models);
         return $this;
     }
-
-
+    
     // AR specific stuff
 
     /**
@@ -94,18 +77,20 @@ class ModelCollection extends Collection
      *
      * TODO add transaction support
      */
-    public function deleteAll()
+    public function deleteAll($useTransaction = false, $db = 'db')
     {
-        $this->ensureModels();
-        foreach($this->_models as $model) {
+        if($useTransaction === true){
+           return $this->inTransaction($db, 'deleteAll');
+        }
+        foreach($this->getData() as $model) {
             $model->delete();
         }
+        // return $this ?
     }
 
     public function scenario($scenario)
     {
-        $this->ensureModels();
-        foreach($this->_models as $model) {
+        foreach($this->getData() as $model) {
             $model->scenario = $scenario;
         }
         return $this;
@@ -116,10 +101,12 @@ class ModelCollection extends Collection
      *
      * TODO add transaction support
      */
-    public function updateAll($attributes, $safeOnly = true, $runValidation = true)
+    public function updateAll($attributes, $safeOnly = true, $runValidation = true, $useTransaction = false, $db = 'db')
     {
-        $this->ensureModels();
-        foreach($this->_models as $model) {
+        if($useTransaction === true){
+            return $this->inTransaction($db, 'updateAll', [$attributes, $safeOnly, $runValidation]);
+        }
+        foreach($this->getData() as $model) {
             $model->setAttributes($attributes, $safeOnly);
             $model->update($runValidation, array_keys($attributes));
         }
@@ -132,11 +119,13 @@ class ModelCollection extends Collection
         return $this;
     }
 
-    public function saveAll($runValidation = true, $attributeNames = null)
+    public function saveAll($runValidation = true, $attributeNames = null, $useTransaction = false, $db = 'db')
     {
-        $this->ensureModels();
-        foreach($this->_models as $model) {
-            $model->update($runValidation, $attributeNames);
+        if($useTransaction === true){
+            return $this->inTransaction($db, 'saveAll', [$runValidation, $attributeNames]);
+        }
+        foreach($this->getData() as $model) {
+            $model->save($runValidation, $attributeNames);
         }
         return $this;
     }
@@ -148,9 +137,8 @@ class ModelCollection extends Collection
      */
     public function validateAll()
     {
-        $this->ensureModels();
         $success = true;
-        foreach($this->_models as $model) {
+        foreach($this->getData() as $model) {
             if (!$model->validate()) {
                 $success = false;
             }
@@ -180,6 +168,29 @@ class ModelCollection extends Collection
      */
     public function toJson($options = 320)
     {
-        return Json::encode($this->toArray()->_models, $options);
+        return Json::encode($this->toArray()->getData(), $options);
+    }
+
+    protected function ensureData($data)
+    {
+        if($data === null){
+            if ($this->query === null) {
+                throw new InvalidCallException('This collection was not created from a query.');
+            }
+            return $this->query->all();
+        }
+        return parent::ensureData($data); // TODO: Change the autogenerated stub
+    }
+
+    private function inTransaction($db, $method, $args = [])
+    {
+        $db = Instance::ensure($db, Connection::class);
+        $transaction = $db->beginTransaction();
+        try{
+            return $this->$method(...$args);
+        }catch (\Throwable $e){
+            $transaction->rollBack();
+            throw $e;
+        }
     }
 }
