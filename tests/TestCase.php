@@ -7,9 +7,9 @@
 
 namespace yiiunit\collection;
 
+use Yii;
 use yii\db\Connection;
 use yii\helpers\ArrayHelper;
-use Yii;
 
 if (!class_exists('\PHPUnit\Framework\TestCase') && class_exists('\PHPUnit_Framework_TestCase')) {
     class_alias('\PHPUnit_Framework_TestCase', '\PHPUnit\Framework\TestCase');
@@ -23,13 +23,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     protected function setUp()
     {
         $this->mockApplication();
-
-        Yii::$app->db->createCommand()->createTable('customers', [
-            'id' => 'pk',
-            'name' => 'string NOT NULL',
-            'age' => 'integer NOT NULL',
-        ])->execute();
-
+        $this->prepareDb();
         parent::setUp();
     }
 
@@ -71,5 +65,72 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     protected function destroyApplication()
     {
         Yii::$app = null;
+    }
+
+    protected function prepareDb()
+    {
+        Yii::$app->db->createCommand()->createTable('customers', [
+            'id' => 'pk',
+            'name' => 'string NOT NULL',
+            'age' => 'integer NOT NULL',
+        ])->execute();
+
+        Yii::$app->db->createCommand()->createTable('products', [
+            'id' => 'pk',
+            'name' => 'string NOT NULL',
+            'cost' => 'integer NOT NULL',
+        ])->execute();
+
+        Yii::$app->db->createCommand()->createTable('orders', [
+            'id' => 'pk',
+            'customerId' => 'integer NOT NULL',
+            'state' => 'string NOT NULL DEFAULT \'pending\'',
+        ])->execute();
+
+        Yii::$app->db->createCommand()->createTable('order_items', [
+            'id' => 'pk',
+            'orderId' => 'integer NOT NULL',
+            'productId' => 'integer NOT NULL',
+            'qty' => 'integer NOT NULL',
+        ])->execute();
+    }
+
+    protected function fillDbFixtures()
+    {
+        Yii::$app->db->createCommand()->batchInsert('customers', ['id', 'name', 'age'], [
+            [1, 'Bob', 32],
+            [2, 'Martin', 28],
+            [3, 'Alex', 44],
+        ])->execute();
+
+        Yii::$app->db->createCommand()->batchInsert('products', ['id', 'name', 'cost'], [
+            [1, 'Soap', 8],
+            [2, 'Towel', 28],
+            [3, 'Brush', 44],
+            [4, 'Toothpaste', 30],
+            [5, 'Toothbrush', 41],
+            [6, 'Shampoo', 54],
+        ])->execute();
+
+        Yii::$app->db->createCommand()->batchInsert('orders', ['id', 'customerId', 'state'], [
+            [1, 1, 'delivered'],
+            [2, 1, 'delivered'],
+            [3, 1, 'pending'],
+            [4, 3, 'delivered'],
+            [5, 3, 'pending'],
+            [6, 2, 'pending'],
+        ])->execute();
+
+        Yii::$app->db->createCommand()->batchInsert('order_items', ['id', 'orderId', 'productId', 'qty'], [
+            [1, 1, 1, 1],
+            [2, 1, 2, 1],
+            [3, 2, 5, 3],
+            [4, 2, 2, 1],
+            [5, 3, 3, 1],
+            [6, 3, 4, 1],
+            [7, 4, 4, 2],
+            [8, 5, 6, 1],
+            [9, 6, 2, 3],
+        ])->execute();
     }
 }
