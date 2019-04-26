@@ -281,7 +281,6 @@ class CollectionTest extends TestCase
         })->each(function(Customer $model) {
             $this->assertEquals('John', $model->name);
         });
-
     }
 
     public function testSum()

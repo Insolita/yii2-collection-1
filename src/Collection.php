@@ -10,9 +10,7 @@ namespace yii\collection;
 use ArrayAccess;
 use Closure;
 use Countable;
-use function is_array;
 use Iterator;
-use function iterator_to_array;
 use Traversable;
 use yii\base\Component;
 use yii\base\InvalidCallException;
@@ -395,6 +393,8 @@ class Collection extends Component implements ArrayAccess, Iterator, Countable
             return new static(\array_merge($this->getData(), $collection->getData()));
         } elseif (\is_array($collection)) {
             return new static(\array_merge($this->getData(), $collection));
+        } elseif ($collection instanceof Traversable) {
+            return new static(\array_merge($this->getData(), \iterator_to_array($collection)));
         }
         throw new InvalidArgumentException('Collection can only be merged with an array or other collections.');
     }
@@ -705,14 +705,14 @@ class Collection extends Component implements ArrayAccess, Iterator, Countable
      */
     protected function ensureData($data)
     {
-        if(is_array($data)){
+        if(\is_array($data)){
             return $data;
         }
         if ($data instanceof self){
             return $data->getData();
         }
         if ($data instanceof Traversable){
-            return iterator_to_array($data);
+            return \iterator_to_array($data);
         }
         return (array) $data;
     }
