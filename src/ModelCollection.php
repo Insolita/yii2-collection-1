@@ -7,10 +7,13 @@
 
 namespace yii\collection;
 
+use function get_class;
 use Yii;
 use yii\base\Arrayable;
 use yii\base\InvalidCallException;
+use yii\base\InvalidValueException;
 use yii\db\ActiveQuery;
+use yii\db\ActiveRecord;
 use yii\db\ActiveRecordInterface;
 use yii\db\BaseActiveRecord;
 use yii\db\Connection;
@@ -74,6 +77,7 @@ class ModelCollection extends Collection
         if (!$this->query) {
             throw new InvalidCallException('This collection was not created from a query, so findWith() is not possible.');
         }
+        $this->ensureAllInstanceOf(BaseActiveRecord::class);
         $models = $this->getData();
         $this->query->findWith($with, $models);
         return $this;
@@ -91,6 +95,7 @@ class ModelCollection extends Collection
      */
     public function deleteAll($useTransaction = false, $db = 'db')
     {
+        $this->ensureAllInstanceOf(BaseActiveRecord::class);
         if($useTransaction === true){
            return $this->runTransaction($db, 'deleteAll');
         }
@@ -106,6 +111,7 @@ class ModelCollection extends Collection
      */
     public function scenario($scenario)
     {
+        $this->ensureAllInstanceOf(BaseActiveRecord::class);
         foreach($this->getModels() as $model) {
             $model->scenario = $scenario;
         }
@@ -121,6 +127,7 @@ class ModelCollection extends Collection
      */
     public function fillAll($attributes, $safeOnly = true, $scenario = null)
     {
+        $this->ensureAllInstanceOf(BaseActiveRecord::class);
         if(!empty($attributes)){
             foreach($this->getModels() as $model) {
                 if($scenario){
@@ -139,6 +146,7 @@ class ModelCollection extends Collection
      */
     public function validateAll()
     {
+        $this->ensureAllInstanceOf(BaseActiveRecord::class);
         $success = true;
         foreach($this->getModels() as $model) {
             if (!$model->validate()) {
@@ -158,6 +166,7 @@ class ModelCollection extends Collection
      */
     public function updateAll($runValidation = true, $attributeNames = null, $useTransaction = false, $db = 'db')
     {
+        $this->ensureAllInstanceOf(BaseActiveRecord::class);
         if($useTransaction === true){
             return $this->runTransaction($db, 'updateAll', [$runValidation, $attributeNames]);
         }
@@ -181,6 +190,7 @@ class ModelCollection extends Collection
      */
     public function saveAll($runValidation = true, $attributeNames = null, $useTransaction = false, $db = 'db')
     {
+        $this->ensureAllInstanceOf(BaseActiveRecord::class);
         if($useTransaction === true){
             return $this->runTransaction($db, 'saveAll', [$runValidation, $attributeNames]);
         }
@@ -193,8 +203,29 @@ class ModelCollection extends Collection
 
     public function insertAll()
     {
-        // TODO could be a batch insert
-        return $this;
+        /**@var \yii\db\ActiveRecord $model*/
+        $model = $this->values()->offsetGet(0);
+        if(!$model instanceof ActiveRecord){
+            throw new InvalidCallException('Only \yii\db\ActiveRecord supported');
+        }
+        $this->ensureAllInstanceOf(get_class($model));
+        return $model::getDb()->createCommand()
+                       ->batchInsert(
+                           $model::tableName(),
+                           array_keys($model->getAttributes()),
+                           $this->values()->map(function($model){
+                               return array_values($model->getAttributes());
+                           })->getData()
+                       )->execute();
+    }
+
+    public function ensureAllInstanceOf($className = ActiveRecord::class)
+    {
+        $this->each(function($item) use ($className){
+            if(!$item instanceof $className){
+                throw new InvalidValueException('Collection must contains only instances of '.$className);
+            }
+        });
     }
     /**
      * @param array $fields

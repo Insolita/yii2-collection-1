@@ -8,6 +8,7 @@
 namespace yiiunit\collection;
 
 use yii\base\InvalidCallException;
+use yii\base\InvalidValueException;
 use yii\collection\Collection;
 use yii\collection\ModelCollection;
 use yii\db\ActiveQuery;
@@ -90,6 +91,14 @@ class ModelCollectionTest extends CollectionTest
             $this->assertTrue($customer->hasErrors('name'));
         });
     }
+
+    public function testValidateAllWithWrongItems()
+    {
+        $this->expectException(InvalidValueException::class);
+        $collection = new ModelCollection([new Customer(['id'=>1]), 'foo']);
+        $collection->validateAll();
+    }
+
     public function testSaveAll()
     {
         $collection = new ModelCollection([
@@ -123,12 +132,26 @@ class ModelCollectionTest extends CollectionTest
         $this->assertTrue($throw);
     }
 
+    public function testSaveAllWithWrongItems()
+    {
+        $this->expectException(InvalidValueException::class);
+        $collection = new ModelCollection([new Customer(['id'=>1]), 'foo']);
+        $collection->saveAll();
+    }
+
     public function testDeleteAll()
     {
         $collection = Customer::find()->collect();
         $ids = $collection->column('id')->getData();
         $collection->deleteAll();
         $this->assertFalse(Customer::find()->where(['id'=>$ids])->exists());
+    }
+
+    public function testDeleteAllWithWrongItems()
+    {
+        $this->expectException(InvalidValueException::class);
+        $collection = new ModelCollection([new Customer(['id'=>1]), 'foo']);
+        $collection->deleteAll();
     }
 
     public function testUpdateAll()
@@ -175,6 +198,31 @@ class ModelCollectionTest extends CollectionTest
         $this->assertTrue($throwed);
     }
 
+    public function testUpdateAllWithWrongItems()
+    {
+        $this->expectException(InvalidValueException::class);
+        $collection = new ModelCollection([new Customer(['id'=>1]), 'foo']);
+        $collection->updateAll();
+    }
+
+    public function testInsertAll()
+    {
+        $collection = new ModelCollection([
+            new Customer(['name' => 'Bob1', 'age' => 22]),
+            new Customer(['name' => 'Alice1', 'age'=>21])
+        ]);
+        $collection->insertAll();
+        $collection->each(function(Customer $model){
+            $this->assertTrue(Customer::find()->where($model->getAttributes(['name','age']))->exists());
+        });
+    }
+
+    public function testInsertAllWithWrongItems()
+    {
+        $this->expectException(InvalidValueException::class);
+        $collection = new ModelCollection([new Customer(['name'=>'Foo']), new Product(['name'=>'Bar'])]);
+        $collection->insertAll();
+    }
     /**
      * @depends testCollect
      */
